@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 
 	"img-validation-service/internal/config"
 	"img-validation-service/internal/controller"
@@ -43,6 +44,7 @@ func main() {
 
 	grpcServer := grpc.NewServer()
 	imgvalidationv1.RegisterImageValidationServiceServer(grpcServer, grpcSrv)
+	reflection.Register(grpcServer)
 
 	grpcAddr := fmt.Sprintf("%s:%d", cfg.AppHost, cfg.GRPCPort)
 	grpcLis, err := net.Listen("tcp", grpcAddr)
