@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  opennsfw2:
+    build: ./opennsfw2
+    ports:
+      - "8081:8081"
+
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    environment:
+      APP_NAME: img-validation-service
+      HTTP_PORT: "8080"
+      GRPC_PORT: "9090"
+      NSFW_ENABLED: "true"
+      NSFW_ENDPOINT: "http://opennsfw2:8081"
+      NSFW_SCORE_THRESHOLD: "0.85"
+      MAX_IMAGE_SIZE_BYTES: "10485760"
+      LOG_LEVEL: debug
+    depends_on:
+      - opennsfw2
