@@ -23,6 +23,8 @@ import (
 	"img-validation-service/internal/validation"
 )
 
+const grpcMaxImageBytes = 12 << 20 // 12 MiB — profile photos up to MAX_IMAGE_SIZE_BYTES (10 MiB)
+
 func main() {
 	cfg := config.Load()
 	setupLogger(cfg.LogLevel)
@@ -42,7 +44,10 @@ func main() {
 	validator := validation.NewValidator(nsfwChecker, cfg.NSFWScoreThreshold, cfg.MaxImageSizeBytes)
 	grpcSrv := grpcserver.NewServer(validator)
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.MaxRecvMsgSize(grpcMaxImageBytes),
+		grpc.MaxSendMsgSize(grpcMaxImageBytes),
+	)
 	imgvalidationv1.RegisterImageValidationServiceServer(grpcServer, grpcSrv)
 	reflection.Register(grpcServer)
 

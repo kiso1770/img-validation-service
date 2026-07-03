@@ -80,7 +80,7 @@ func NewHTTPChecker(endpoint string, threshold float64) *HTTPChecker {
 	return &HTTPChecker{
 		endpoint:   strings.TrimRight(endpoint, "/"),
 		threshold:  threshold,
-		httpClient: &http.Client{Timeout: 10 * time.Second},
+		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
