@@ -21,8 +21,22 @@ func NewMonitoringService(cfg *config.Config) MonitoringService {
 }
 
 func (s *monitoringService) CheckReady(ctx context.Context) error {
-	if s.cfg.ReadinessSkipNSFW || !s.cfg.NSFWEnabled {
-		return nil
+	if !s.cfg.ReadinessSkipNSFW && s.cfg.NSFWEnabled {
+		if err := validation.PingSidecar(ctx, s.cfg.NSFWEndpoint); err != nil {
+			return err
+		}
 	}
-	return validation.PingSidecar(ctx, s.cfg.NSFWEndpoint)
+	if !s.cfg.ReadinessSkipFace {
+		if s.cfg.FaceEnabled {
+			if err := validation.PingSidecar(ctx, s.cfg.FaceEndpoint); err != nil {
+				return err
+			}
+		}
+		if s.cfg.AntiSpoofEnabled {
+			if err := validation.PingSidecar(ctx, s.cfg.AntiSpoofEndpoint); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

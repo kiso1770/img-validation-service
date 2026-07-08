@@ -17,6 +17,8 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ghcr.io/kiso1770/img-validation-service
   OPENNSFW2_IMAGE: ghcr.io/kiso1770/opennsfw2-api
+  FACEID_IMAGE: ghcr.io/kiso1770/faceid-api
+  ANTISPOOF_IMAGE: ghcr.io/kiso1770/antispoof-api
 
 jobs:
   lint-test:
@@ -125,3 +127,27 @@ jobs:
             ${{ env.OPENNSFW2_IMAGE }}:dev-latest
           cache-from: type=gha,scope=opennsfw2
           cache-to: type=gha,mode=max,scope=opennsfw2
+
+      - name: Build and push faceid sidecar
+        uses: docker/build-push-action@v6
+        with:
+          context: ./deploy/faceid
+          file: ./deploy/faceid/Dockerfile
+          push: true
+          tags: |
+            ${{ env.FACEID_IMAGE }}:dev-${{ github.sha }}
+            ${{ env.FACEID_IMAGE }}:dev-latest
+          cache-from: type=gha,scope=faceid
+          cache-to: type=gha,mode=max,scope=faceid
+
+      - name: Build and push antispoof sidecar
+        uses: docker/build-push-action@v6
+        with:
+          context: ./deploy/antispoof
+          file: ./deploy/antispoof/Dockerfile
+          push: true
+          tags: |
+            ${{ env.ANTISPOOF_IMAGE }}:dev-${{ github.sha }}
+            ${{ env.ANTISPOOF_IMAGE }}:dev-latest
+          cache-from: type=gha,scope=antispoof
+          cache-to: type=gha,mode=max,scope=antispoof
