@@ -19,10 +19,13 @@ import (
 
 const (
 	PurposeProfilePhoto = "profile_photo"
+	PurposeSelfie       = "selfie"
 	DefaultThreshold    = 0.85
 	ReasonNSFW          = "nsfw"
 	ReasonUnsupported   = "unsupported_format"
 	ReasonTooLarge      = "too_large"
+	ReasonNoFace        = "no_face"
+	ReasonMultipleFaces = "multiple_faces"
 )
 
 func init() {
@@ -39,6 +42,8 @@ type Result struct {
 	Height           int32
 	SizeBytes        int64
 	RejectionReasons []string
+	FaceCount        int32
+	FaceConfidence   float64
 }
 
 // Validator validates uploaded image bytes.
@@ -145,7 +150,17 @@ func (c *HTTPChecker) Score(ctx context.Context, imageData []byte, referenceID s
 // NeedsNSFW reports whether NSFW moderation applies to the upload purpose.
 func NeedsNSFW(purpose string) bool {
 	switch strings.TrimSpace(purpose) {
-	case PurposeProfilePhoto, "selfie", "chat_media":
+	case PurposeProfilePhoto, PurposeSelfie, "chat_media":
+		return true
+	default:
+		return false
+	}
+}
+
+// NeedsFaceCheck reports whether face detection applies to the upload purpose.
+func NeedsFaceCheck(purpose string) bool {
+	switch strings.TrimSpace(purpose) {
+	case PurposeProfilePhoto, PurposeSelfie:
 		return true
 	default:
 		return false
@@ -156,10 +171,17 @@ type validator struct {
 	nsfwChecker       NSFWChecker
 	nsfwThreshold     float64
 	maxImageSizeBytes int64
+	faceDetector      FaceDetector
 }
 
 // NewValidator creates the image validation orchestrator.
 func NewValidator(nsfwChecker NSFWChecker, nsfwThreshold float64, maxImageSizeBytes int64) Validator {
+	return NewValidatorWithFace(nsfwChecker, nsfwThreshold, maxImageSizeBytes, nil)
+}
+
+// NewValidatorWithFace creates the validator with an optional face detector.
+// A nil faceDetector falls back to a pass-through stub (no face rejection).
+func NewValidatorWithFace(nsfwChecker NSFWChecker, nsfwThreshold float64, maxImageSizeBytes int64, faceDetector FaceDetector) Validator {
 	if nsfwChecker == nil {
 		nsfwChecker = NewStubChecker()
 	}
@@ -169,10 +191,14 @@ func NewValidator(nsfwChecker NSFWChecker, nsfwThreshold float64, maxImageSizeBy
 	if maxImageSizeBytes <= 0 {
 		maxImageSizeBytes = 10 * 1024 * 1024
 	}
+	if faceDetector == nil {
+		faceDetector = NewStubFaceDetector()
+	}
 	return &validator{
 		nsfwChecker:       nsfwChecker,
 		nsfwThreshold:     nsfwThreshold,
 		maxImageSizeBytes: maxImageSizeBytes,
+		faceDetector:      faceDetector,
 	}
 }
 
@@ -208,21 +234,38 @@ func (v *validator) Validate(
 	result.Width = width
 	result.Height = height
 
-	if !NeedsNSFW(purpose) {
-		result.Passed = true
-		return result, nil
+	if NeedsNSFW(purpose) {
+		score, err := v.nsfwChecker.Score(ctx, imageData, referenceID)
+		if err != nil {
+			return nil, err
+		}
+		result.NSFWScore = score
+
+		if score >= v.nsfwThreshold {
+			result.Passed = false
+			result.RejectionReasons = []string{ReasonNSFW}
+			return result, nil
+		}
 	}
 
-	score, err := v.nsfwChecker.Score(ctx, imageData, referenceID)
-	if err != nil {
-		return nil, err
-	}
-	result.NSFWScore = score
+	if NeedsFaceCheck(purpose) {
+		detected, err := v.faceDetector.Detect(ctx, imageData, referenceID)
+		if err != nil {
+			return nil, err
+		}
+		result.FaceCount = detected.FaceCount
+		result.FaceConfidence = detected.Confidence
 
-	if score >= v.nsfwThreshold {
-		result.Passed = false
-		result.RejectionReasons = []string{ReasonNSFW}
-		return result, nil
+		switch {
+		case detected.FaceCount == 0:
+			result.Passed = false
+			result.RejectionReasons = []string{ReasonNoFace}
+			return result, nil
+		case purpose == PurposeSelfie && detected.FaceCount > 1:
+			result.Passed = false
+			result.RejectionReasons = []string{ReasonMultipleFaces}
+			return result, nil
+		}
 	}
 
 	result.Passed = true

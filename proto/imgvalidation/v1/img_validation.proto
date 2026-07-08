@@ -6,6 +6,8 @@ option go_package = "img-validation-service/internal/grpc/pb/imgvalidation/v1;im
 
 service ImageValidationService {
   rpc ValidateImage(ValidateImageRequest) returns (ValidateImageResponse);
+  rpc MatchFaces(MatchFacesRequest) returns (MatchFacesResponse);
+  rpc CheckLiveness(CheckLivenessRequest) returns (CheckLivenessResponse);
 }
 
 message ValidateImageRequest {
@@ -24,4 +26,32 @@ message ValidateImageResponse {
   int32 height = 6;
   int64 size_bytes = 7;
   repeated string rejection_reasons = 8;
+  int32 face_count = 9;
+  double face_confidence = 10;
+}
+
+// MatchFacesRequest compares the face in source_image (selfie) against target_image
+// (a profile photo) and returns a cosine-similarity based match score.
+message MatchFacesRequest {
+  bytes source_image = 1;
+  bytes target_image = 2;
+  string reference_id = 3;
+}
+
+message MatchFacesResponse {
+  bool matched = 1;
+  double similarity = 2;
+  int32 source_face_count = 3;
+  int32 target_face_count = 4;
+}
+
+// CheckLivenessRequest runs anti-spoof (presentation attack detection) on a single frame.
+message CheckLivenessRequest {
+  bytes image_data = 1;
+  string reference_id = 2;
+}
+
+message CheckLivenessResponse {
+  bool live = 1;
+  double score = 2;
 }

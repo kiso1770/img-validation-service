@@ -41,8 +41,36 @@ func main() {
 		slog.Warn("nsfw checker disabled (stub pass-all; reference_id with /reject/ fails)")
 	}
 
-	validator := validation.NewValidator(nsfwChecker, cfg.NSFWScoreThreshold, cfg.MaxImageSizeBytes)
-	grpcSrv := grpcserver.NewServer(validator)
+	var faceDetector validation.FaceDetector
+	var faceMatcher validation.FaceMatcher
+	if cfg.FaceEnabled && strings.TrimSpace(cfg.FaceEndpoint) != "" {
+		faceClient := validation.NewHTTPFaceClient(cfg.FaceEndpoint, cfg.FaceMatchThreshold)
+		faceDetector = faceClient
+		faceMatcher = faceClient
+		slog.Info("face detector/matcher enabled",
+			"endpoint", cfg.FaceEndpoint,
+			"match_threshold", cfg.FaceMatchThreshold,
+		)
+	} else {
+		faceDetector = validation.NewStubFaceDetector()
+		faceMatcher = validation.NewStubFaceMatcher()
+		slog.Warn("face detector/matcher disabled (stub pass-all; reference_id with /nomatch/ fails match)")
+	}
+
+	var livenessChecker validation.LivenessChecker
+	if cfg.AntiSpoofEnabled && strings.TrimSpace(cfg.AntiSpoofEndpoint) != "" {
+		livenessChecker = validation.NewHTTPAntiSpoofChecker(cfg.AntiSpoofEndpoint, cfg.AntiSpoofMinScore)
+		slog.Info("anti-spoof checker enabled",
+			"endpoint", cfg.AntiSpoofEndpoint,
+			"min_score", cfg.AntiSpoofMinScore,
+		)
+	} else {
+		livenessChecker = validation.NewStubLivenessChecker()
+		slog.Warn("anti-spoof checker disabled (stub pass-all; reference_id with /spoof/ fails)")
+	}
+
+	validator := validation.NewValidatorWithFace(nsfwChecker, cfg.NSFWScoreThreshold, cfg.MaxImageSizeBytes, faceDetector)
+	grpcSrv := grpcserver.NewServerWithFace(validator, faceMatcher, livenessChecker)
 
 	grpcServer := grpc.NewServer(
 		grpc.MaxRecvMsgSize(grpcMaxImageBytes),

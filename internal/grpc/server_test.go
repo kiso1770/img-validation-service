@@ -84,3 +84,68 @@ func TestValidateImageGRPC_EmptyPayload(t *testing.T) {
 		t.Fatal("expected invalid argument error")
 	}
 }
+
+func TestMatchFacesGRPC(t *testing.T) {
+	t.Parallel()
+
+	conn, cleanup := startTestServer(t)
+	defer cleanup()
+
+	client := imgvalidationv1.NewImageValidationServiceClient(conn)
+	resp, err := client.MatchFaces(context.Background(), &imgvalidationv1.MatchFacesRequest{
+		SourceImage: []byte("selfie"),
+		TargetImage: []byte("profile"),
+		ReferenceId: "test-ref",
+	})
+	if err != nil {
+		t.Fatalf("rpc error: %v", err)
+	}
+	if !resp.GetMatched() {
+		t.Fatal("expected stub matcher to report matched=true")
+	}
+}
+
+func TestMatchFacesGRPC_EmptyPayload(t *testing.T) {
+	t.Parallel()
+
+	conn, cleanup := startTestServer(t)
+	defer cleanup()
+
+	client := imgvalidationv1.NewImageValidationServiceClient(conn)
+	_, err := client.MatchFaces(context.Background(), &imgvalidationv1.MatchFacesRequest{})
+	if err == nil {
+		t.Fatal("expected invalid argument error")
+	}
+}
+
+func TestCheckLivenessGRPC(t *testing.T) {
+	t.Parallel()
+
+	conn, cleanup := startTestServer(t)
+	defer cleanup()
+
+	client := imgvalidationv1.NewImageValidationServiceClient(conn)
+	resp, err := client.CheckLiveness(context.Background(), &imgvalidationv1.CheckLivenessRequest{
+		ImageData:   []byte("selfie"),
+		ReferenceId: "test-ref",
+	})
+	if err != nil {
+		t.Fatalf("rpc error: %v", err)
+	}
+	if !resp.GetLive() {
+		t.Fatal("expected stub liveness checker to report live=true")
+	}
+}
+
+func TestCheckLivenessGRPC_EmptyPayload(t *testing.T) {
+	t.Parallel()
+
+	conn, cleanup := startTestServer(t)
+	defer cleanup()
+
+	client := imgvalidationv1.NewImageValidationServiceClient(conn)
+	_, err := client.CheckLiveness(context.Background(), &imgvalidationv1.CheckLivenessRequest{})
+	if err == nil {
+		t.Fatal("expected invalid argument error")
+	}
+}

@@ -14,11 +14,20 @@ import (
 // Server implements ImageValidationService.
 type Server struct {
 	imgvalidationv1.UnimplementedImageValidationServiceServer
-	validator validation.Validator
+	validator       validation.Validator
+	faceMatcher     validation.FaceMatcher
+	livenessChecker validation.LivenessChecker
 }
 
+// NewServer wires the validator with stub face/liveness checkers (no rejection).
+// Use NewServerWithFace to enable real face match and anti-spoof checks.
 func NewServer(v validation.Validator) *Server {
-	return &Server{validator: v}
+	return NewServerWithFace(v, validation.NewStubFaceMatcher(), validation.NewStubLivenessChecker())
+}
+
+// NewServerWithFace wires the validator together with face match and liveness checkers.
+func NewServerWithFace(v validation.Validator, faceMatcher validation.FaceMatcher, livenessChecker validation.LivenessChecker) *Server {
+	return &Server{validator: v, faceMatcher: faceMatcher, livenessChecker: livenessChecker}
 }
 
 func (s *Server) ValidateImage(
@@ -50,5 +59,49 @@ func (s *Server) ValidateImage(
 		Height:           result.Height,
 		SizeBytes:        result.SizeBytes,
 		RejectionReasons: result.RejectionReasons,
+		FaceCount:        result.FaceCount,
+		FaceConfidence:   result.FaceConfidence,
+	}, nil
+}
+
+func (s *Server) MatchFaces(
+	ctx context.Context,
+	req *imgvalidationv1.MatchFacesRequest,
+) (*imgvalidationv1.MatchFacesResponse, error) {
+	if req == nil || len(req.GetSourceImage()) == 0 || len(req.GetTargetImage()) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "source_image and target_image are required")
+	}
+
+	result, err := s.faceMatcher.Match(ctx, req.GetSourceImage(), req.GetTargetImage(), req.GetReferenceId())
+	if err != nil {
+		slog.Error("match faces failed", "error", err, "reference_id", req.GetReferenceId())
+		return nil, status.Errorf(codes.Unavailable, "face match failed: %v", err)
+	}
+
+	return &imgvalidationv1.MatchFacesResponse{
+		Matched:         result.Matched,
+		Similarity:      result.Similarity,
+		SourceFaceCount: result.SourceFaceCount,
+		TargetFaceCount: result.TargetFaceCount,
+	}, nil
+}
+
+func (s *Server) CheckLiveness(
+	ctx context.Context,
+	req *imgvalidationv1.CheckLivenessRequest,
+) (*imgvalidationv1.CheckLivenessResponse, error) {
+	if req == nil || len(req.GetImageData()) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "image_data is required")
+	}
+
+	result, err := s.livenessChecker.Check(ctx, req.GetImageData(), req.GetReferenceId())
+	if err != nil {
+		slog.Error("check liveness failed", "error", err, "reference_id", req.GetReferenceId())
+		return nil, status.Errorf(codes.Unavailable, "liveness check failed: %v", err)
+	}
+
+	return &imgvalidationv1.CheckLivenessResponse{
+		Live:  result.Live,
+		Score: result.Score,
 	}, nil
 }

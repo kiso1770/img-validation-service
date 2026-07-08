@@ -7,20 +7,24 @@ import (
 )
 
 const (
-	DefaultNSFWThreshold   = 0.85
-	DefaultMaxImageSize    = 10 * 1024 * 1024 // 10 MB
-	DefaultGRPCPort        = 9090
-	DefaultHTTPPort        = 8080
-	DefaultNSFWEndpoint    = "http://localhost:8081"
+	DefaultNSFWThreshold      = 0.85
+	DefaultMaxImageSize       = 10 * 1024 * 1024 // 10 MB
+	DefaultGRPCPort           = 9090
+	DefaultHTTPPort           = 8080
+	DefaultNSFWEndpoint       = "http://localhost:8081"
+	DefaultFaceEndpoint       = "http://localhost:8082"
+	DefaultFaceMatchThreshold = 0.40
+	DefaultAntiSpoofEndpoint  = "http://localhost:8083"
+	DefaultAntiSpoofThreshold = 0.70
 )
 
 // Config holds runtime configuration for img-validation-service.
 type Config struct {
-	AppName  string
-	AppHost  string
-	HTTPPort int
-	GRPCPort int
-	LogLevel string
+	AppName   string
+	AppHost   string
+	HTTPPort  int
+	GRPCPort  int
+	LogLevel  string
 	DebugMode bool
 
 	NSFWEnabled        bool
@@ -28,6 +32,14 @@ type Config struct {
 	NSFWScoreThreshold float64
 	MaxImageSizeBytes  int64
 	ReadinessSkipNSFW  bool
+
+	FaceEnabled        bool
+	FaceEndpoint       string
+	FaceMatchThreshold float64
+	AntiSpoofEnabled   bool
+	AntiSpoofEndpoint  string
+	AntiSpoofMinScore  float64
+	ReadinessSkipFace  bool
 }
 
 // Load reads configuration from environment variables.
@@ -44,6 +56,14 @@ func Load() *Config {
 		NSFWScoreThreshold: getEnvAsFloat("NSFW_SCORE_THRESHOLD", DefaultNSFWThreshold),
 		MaxImageSizeBytes:  getEnvAsInt64("MAX_IMAGE_SIZE_BYTES", DefaultMaxImageSize),
 		ReadinessSkipNSFW:  getEnvAsBool("READINESS_SKIP_NSFW", false),
+
+		FaceEnabled:        getEnvAsBool("FACE_ENABLED", false),
+		FaceEndpoint:       getEnv("FACE_ENDPOINT", DefaultFaceEndpoint),
+		FaceMatchThreshold: getEnvAsFloat("FACE_MATCH_THRESHOLD", DefaultFaceMatchThreshold),
+		AntiSpoofEnabled:   getEnvAsBool("ANTISPOOF_ENABLED", false),
+		AntiSpoofEndpoint:  getEnv("ANTISPOOF_ENDPOINT", DefaultAntiSpoofEndpoint),
+		AntiSpoofMinScore:  getEnvAsFloat("ANTISPOOF_MIN_SCORE", DefaultAntiSpoofThreshold),
+		ReadinessSkipFace:  getEnvAsBool("READINESS_SKIP_FACE", false),
 	}
 }
 
