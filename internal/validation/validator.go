@@ -261,7 +261,7 @@ func (v *validator) Validate(
 			result.Passed = false
 			result.RejectionReasons = []string{ReasonNoFace}
 			return result, nil
-		case purpose == PurposeSelfie && detected.FaceCount > 1:
+		case detected.FaceCount > 1:
 			result.Passed = false
 			result.RejectionReasons = []string{ReasonMultipleFaces}
 			return result, nil

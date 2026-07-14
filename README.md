@@ -9,8 +9,8 @@ detection (InsightFace/`faceid` sidecar), face match and anti-spoof liveness
 See [proto/imgvalidation/v1/img_validation.proto](proto/imgvalidation/v1/img_validation.proto).
 
 - `ValidateImage` — format/size/NSFW/face-presence checks for an upload. `purpose=profile_photo`
-  and `purpose=selfie` also run face detection (`face_count`, `face_confidence` in the response);
-  `selfie` additionally rejects more than one detected face.
+  and `purpose=selfie` also run face detection (`face_count`, `face_confidence` in the response),
+  rejecting zero or more than one detected face for both purposes.
 - `MatchFaces` — compares a selfie against a reference photo, returns cosine `similarity` and
   `matched` (similarity >= `FACE_MATCH_THRESHOLD`).
 - `CheckLiveness` — anti-spoof (presentation attack detection) on a single frame.
