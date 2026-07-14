@@ -150,17 +150,22 @@ func TestValidator_SelfieMultipleFacesRejection(t *testing.T) {
 	}
 }
 
-func TestValidator_ProfilePhotoAllowsMultipleFaces(t *testing.T) {
+func TestValidator_ProfilePhotoRejectsMultipleFaces(t *testing.T) {
 	t.Parallel()
 
+	// Dating profile photos must show exactly one person, even on non-main
+	// positions — group photos with friends aren't allowed.
 	twoFaceDetector := fixedFaceDetector{count: 2}
 	v := validation.NewValidatorWithFace(validation.NewStubChecker(), 0.85, 10<<20, twoFaceDetector)
 	result, err := v.Validate(context.Background(), minimalPNG(), "image/png", "profile_photo", "ref")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !result.Passed {
-		t.Fatalf("expected pass, reasons=%v", result.RejectionReasons)
+	if result.Passed {
+		t.Fatal("expected reject for multiple faces on profile_photo")
+	}
+	if result.RejectionReasons[0] != validation.ReasonMultipleFaces {
+		t.Fatalf("expected multiple_faces, got %v", result.RejectionReasons)
 	}
 }
 
