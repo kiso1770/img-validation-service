@@ -35,6 +35,12 @@ from src.data_io import transform as trans  # noqa: E402
 from src.generate_patches import CropImage  # noqa: E402
 from src.utility import get_kernel, parse_model_name  # noqa: E402
 
+# Guard against decompression bombs: a small-in-bytes file can decode into an
+# enormous pixel buffer. ~30MP gives headroom for profile photos/selfies while
+# bounding the worst case. Pillow raises Image.DecompressionBombError above this,
+# which is caught by the same try/except as other decode failures below.
+Image.MAX_IMAGE_PIXELS = 30_000_000
+
 MODEL_DIR = os.path.join(SFAS_ROOT, "resources", "anti_spoof_models")
 
 app = FastAPI()

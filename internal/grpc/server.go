@@ -7,6 +7,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"img-validation-service/internal/config"
 	imgvalidationv1 "img-validation-service/internal/grpc/pb/imgvalidation/v1"
 	"img-validation-service/internal/validation"
 )
@@ -14,9 +15,10 @@ import (
 // Server implements ImageValidationService.
 type Server struct {
 	imgvalidationv1.UnimplementedImageValidationServiceServer
-	validator       validation.Validator
-	faceMatcher     validation.FaceMatcher
-	livenessChecker validation.LivenessChecker
+	validator         validation.Validator
+	faceMatcher       validation.FaceMatcher
+	livenessChecker   validation.LivenessChecker
+	maxImageSizeBytes int64
 }
 
 // NewServer wires the validator with stub face/liveness checkers (no rejection).
@@ -25,9 +27,27 @@ func NewServer(v validation.Validator) *Server {
 	return NewServerWithFace(v, validation.NewStubFaceMatcher(), validation.NewStubLivenessChecker())
 }
 
-// NewServerWithFace wires the validator together with face match and liveness checkers.
+// NewServerWithFace wires the validator together with face match and liveness checkers,
+// using the default max image size limit.
 func NewServerWithFace(v validation.Validator, faceMatcher validation.FaceMatcher, livenessChecker validation.LivenessChecker) *Server {
-	return &Server{validator: v, faceMatcher: faceMatcher, livenessChecker: livenessChecker}
+	return NewServerWithFaceAndLimit(v, faceMatcher, livenessChecker, config.DefaultMaxImageSize)
+}
+
+// NewServerWithFaceAndLimit wires the validator together with face match and liveness
+// checkers, applying maxImageSizeBytes as the size cap enforced on MatchFaces and
+// CheckLiveness payloads before they are forwarded to the sidecars. ValidateImage enforces
+// its own limit via the validator. A non-positive maxImageSizeBytes falls back to the
+// package default.
+func NewServerWithFaceAndLimit(v validation.Validator, faceMatcher validation.FaceMatcher, livenessChecker validation.LivenessChecker, maxImageSizeBytes int64) *Server {
+	if maxImageSizeBytes <= 0 {
+		maxImageSizeBytes = config.DefaultMaxImageSize
+	}
+	return &Server{
+		validator:         v,
+		faceMatcher:       faceMatcher,
+		livenessChecker:   livenessChecker,
+		maxImageSizeBytes: maxImageSizeBytes,
+	}
 }
 
 func (s *Server) ValidateImage(
@@ -71,6 +91,12 @@ func (s *Server) MatchFaces(
 	if req == nil || len(req.GetSourceImage()) == 0 || len(req.GetTargetImage()) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "source_image and target_image are required")
 	}
+	if int64(len(req.GetSourceImage())) > s.maxImageSizeBytes {
+		return nil, status.Errorf(codes.InvalidArgument, "source_image exceeds max size of %d bytes", s.maxImageSizeBytes)
+	}
+	if int64(len(req.GetTargetImage())) > s.maxImageSizeBytes {
+		return nil, status.Errorf(codes.InvalidArgument, "target_image exceeds max size of %d bytes", s.maxImageSizeBytes)
+	}
 
 	result, err := s.faceMatcher.Match(ctx, req.GetSourceImage(), req.GetTargetImage(), req.GetReferenceId())
 	if err != nil {
@@ -92,6 +118,9 @@ func (s *Server) CheckLiveness(
 ) (*imgvalidationv1.CheckLivenessResponse, error) {
 	if req == nil || len(req.GetImageData()) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "image_data is required")
+	}
+	if int64(len(req.GetImageData())) > s.maxImageSizeBytes {
+		return nil, status.Errorf(codes.InvalidArgument, "image_data exceeds max size of %d bytes", s.maxImageSizeBytes)
 	}
 
 	result, err := s.livenessChecker.Check(ctx, req.GetImageData(), req.GetReferenceId())

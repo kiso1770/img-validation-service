@@ -70,7 +70,7 @@ func main() {
 	}
 
 	validator := validation.NewValidatorWithFace(nsfwChecker, cfg.NSFWScoreThreshold, cfg.MaxImageSizeBytes, faceDetector)
-	grpcSrv := grpcserver.NewServerWithFace(validator, faceMatcher, livenessChecker)
+	grpcSrv := grpcserver.NewServerWithFaceAndLimit(validator, faceMatcher, livenessChecker, cfg.MaxImageSizeBytes)
 
 	grpcServer := grpc.NewServer(
 		grpc.MaxRecvMsgSize(grpcMaxImageBytes),

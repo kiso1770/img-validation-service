@@ -19,6 +19,12 @@ from fastapi import FastAPI, HTTPException, Request
 from insightface.app import FaceAnalysis
 from PIL import Image
 
+# Guard against decompression bombs: a small-in-bytes file can decode into an
+# enormous pixel buffer. ~30MP gives headroom for profile photos/selfies while
+# bounding the worst case. Pillow raises Image.DecompressionBombError above this,
+# which is caught by the same try/except as other decode failures below.
+Image.MAX_IMAGE_PIXELS = 30_000_000
+
 app = FastAPI()
 
 _face_app: FaceAnalysis | None = None
